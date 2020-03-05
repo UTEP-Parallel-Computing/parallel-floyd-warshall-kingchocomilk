@@ -24,24 +24,39 @@ def main():
         print('Missing Graph file. Try --help')
     else:
         print(args.graph)
-        finished_matrix = run(matrixUtils.readFromFile(args.graph))
+        finished_matrix,rank = run(matrixUtils.readFromFile(args.graph))
         if (args.outputfile is None):
-            matrixUtil.printSubarray(finished_matrix)
+            matrixUtils.printSubarray(finished_matrix)
         else:
-            print(f'Writing matrix to {args.outputfile}')
-            matrixUtils.writeToFile(finished_matrix, args.outputfile);
+            if (rank == 0):
+                print(f'Writing matrix to {args.outputfile}')
+                matrixUtils.writeToFile(finished_matrix, args.outputfile);
 
 def run(graph):
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    print(rank)
+    print(size)
+    # num rows / # of threads
     # Its assumed that the graph is a square.
     n = len(graph)
+    magnitude = n / size
+    begin = int(rank * magnitude)
+    end = int((rank + 1) * magnitude)
     for k in range(1, n+1):
-        for i in range(0, n):
+        owner = int((size / n) * (k - 1))
+        graph[k-1] = comm.bcast(graph[k-1], root=owner)
+        for i in range(begin, end):
             if ((i+1) != k):
                 for j in range(0, n):
                     if ((j+1) != k):
                         graph[i][j] = min(graph[i][j],
                                           graph[i][k-1] + graph[k-1][j])
-    return graph
+    for k in range(1, n+1):
+        owner = int((size / n) * (k - 1))
+        graph[k-1] = comm.bcast(graph[k-1], root=owner)
+    return graph,rank
 
 if __name__ == '__main__':
     main()
